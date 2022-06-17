@@ -1,8 +1,27 @@
 extern crate gl;
 extern crate glfw;
 
+use core::mem::{size_of, size_of_val};
+
 //use gl::types::*;
 use glfw::{Action, Context, Key};
+
+type Vertex = [f32; 3];
+const VERTICES: [Vertex; 3] = [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]];
+
+const VERT_SHADER: &str = r#"#version 330 core
+  layout (location = 0) in vec3 pos;
+  void main() {
+    gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
+  }
+"#;
+
+const FRAG_SHADER: &str = r#"#version 330 core
+  out vec4 final_color;
+  void main() {
+    final_color = vec4(1.0, 0.5, 0.2, 1.0);
+  }
+"#;
 
 //todo
 //fn initGlfw() -> glfw::Glfw {
@@ -29,6 +48,9 @@ pub fn create_window() {
     window.make_current();
     window.set_key_polling(true);
 
+    //Set VSync
+    glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+
     //Loads all functions pointers
     gl::load_with(|s| glfw.get_proc_address_raw(s));
 
@@ -43,6 +65,121 @@ pub fn create_window() {
     }
 
     window.set_framebuffer_size_polling(true);
+
+    unsafe {
+        gl::ClearColor(1.0, 0.2, 0.5, 1.0);
+
+        //Generate Vertex Buffer Objects (VBOs)
+        let mut vbo: u32 = 0;
+        gl::GenBuffers(1, &mut vbo);
+        assert_ne!(vbo, 0);
+
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            size_of_val(&VERTICES) as isize,
+            VERTICES.as_ptr().cast(),
+            gl::STATIC_DRAW,
+        );
+
+        //Generate a Vertex Array Object(VAO)
+        let mut vao: u32 = 0;
+        gl::GenVertexArrays(1, &mut vao);
+        assert_ne!(vao, 0);
+        gl::BindVertexArray(vao);
+
+        //Vertex Attribute
+        gl::VertexAttribPointer(
+            0, //bc we put: layout (location = 0) in our vertex code
+            3, //bc our vertex is a vec3 (x, y, z)
+            gl::FLOAT,
+            gl::FALSE,
+            size_of::<Vertex>().try_into().unwrap(),
+            0 as *const _,
+        );
+
+        gl::EnableVertexAttribArray(0);
+
+        //Create Vertex Shader
+        let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
+        assert_ne!(vertex_shader, 0);
+        gl::ShaderSource(
+            vertex_shader,
+            1,
+            &(VERT_SHADER.as_bytes().as_ptr().cast()),
+            &(VERT_SHADER.len().try_into().unwrap()),
+        );
+        gl::CompileShader(vertex_shader);
+        let mut success = 0;
+        gl::GetShaderiv(vertex_shader, gl::COMPILE_STATUS, &mut success);
+
+        //Check vertex shader compile success
+        if success == 0 {
+            let mut v: Vec<u8> = Vec::with_capacity(1024);
+            let mut log_len = 0_i32;
+            gl::GetShaderInfoLog(vertex_shader, 1024, &mut log_len, v.as_mut_ptr().cast());
+            v.set_len(log_len.try_into().unwrap());
+            panic!("Vertex Compile Error: {}", String::from_utf8_lossy(&v));
+
+            /*
+            let buffer_size = gl::INFO_LOG_LENGTH;
+            let mut v: Vec<u8> = Vec::with_capacity(buffer_size.try_into().unwrap());
+            let mut log_len = 0_i32;
+
+            gl::GetShaderInfoLog(
+                vertex_shader,
+                buffer_size.try_into().unwrap(),
+                &mut log_len,
+                v.as_mut_ptr().cast(),
+            );
+            v.set_len(log_len.try_into().unwrap());
+            panic!("Vertex Compile Error: {}", String::from_utf8_lossy(&v)); */
+        } //End Vertex Shader
+
+        //Create Fragment Shader
+        let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
+        assert_ne!(fragment_shader, 0);
+        gl::ShaderSource(
+            fragment_shader,
+            1,
+            &(FRAG_SHADER.as_bytes().as_ptr().cast()),
+            &(FRAG_SHADER.len().try_into().unwrap()),
+        );
+        gl::CompileShader(fragment_shader);
+
+        //Check fragment shader compile success
+        let mut success = 0;
+        gl::GetShaderiv(fragment_shader, gl::COMPILE_STATUS, &mut success);
+        if success == 0 {
+            let mut v: Vec<u8> = Vec::with_capacity(1024);
+            let mut log_len = 0_i32;
+            gl::GetShaderInfoLog(fragment_shader, 1024, &mut log_len, v.as_mut_ptr().cast());
+            v.set_len(log_len.try_into().unwrap());
+            panic!("Fragment Compile Error: {}", String::from_utf8_lossy(&v));
+        } //End fragment shader
+
+        //Create program
+        let shader_program = gl::CreateProgram();
+        gl::AttachShader(shader_program, vertex_shader);
+        gl::AttachShader(shader_program, fragment_shader);
+        gl::LinkProgram(shader_program);
+
+        //Check for link error
+        let mut success = 0;
+        gl::GetProgramiv(shader_program, gl::LINK_STATUS, &mut success);
+        if success == 0 {
+            let mut v: Vec<u8> = Vec::with_capacity(1024);
+            let mut log_len = 0_i32;
+            gl::GetShaderInfoLog(shader_program, 1024, &mut log_len, v.as_mut_ptr().cast());
+            v.set_len(log_len.try_into().unwrap());
+            panic!("Program Link Error: {}", String::from_utf8_lossy(&v));
+        } //End create program
+
+        gl::DeleteShader(vertex_shader);
+        gl::DeleteShader(fragment_shader);
+
+        gl::UseProgram(shader_program);
+    }
 
     //Loop until window is closed
     while !window.should_close() {
@@ -60,16 +197,11 @@ pub fn create_window() {
         } //End input handler
 
         //Rendering commands here!?
-        if gl::ClearColor::is_loaded() {
-            unsafe {
-                gl::ClearColor(1.0f32, 0.2f32, 0.5f32, 1.0f32);
-            }
-        }
 
-        if gl::Clear::is_loaded() {
-            unsafe {
-                gl::Clear(gl::COLOR_BUFFER_BIT);
-            }
+        unsafe {
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
 
         //poll for and process events ??
@@ -78,3 +210,13 @@ pub fn create_window() {
         window.swap_buffers();
     }
 }
+
+/*
+fn create_vertex(vertices: [i32; 9]) {
+    let mut VBO: u32;
+
+    if !gl::GenBuffers::is_loaded(){
+
+    }
+}
+*/
