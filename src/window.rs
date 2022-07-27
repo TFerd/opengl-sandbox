@@ -7,7 +7,13 @@ use core::mem::{size_of, size_of_val};
 use glfw::{Action, Context, Key};
 
 type Vertex = [f32; 3];
-const VERTICES: [Vertex; 3] = [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]];
+const VERTICES: [Vertex; 4] = [
+    [0.5, -0.5, 0.0],
+    [0.5, -0.5, 0.0],
+    [-0.5, -0.5, 0.0],
+    [-0.5, 0.5, 0.0],
+];
+const INDICES: [u32; 6] = [0, 1, 3, 1, 2, 3];
 
 const VERT_SHADER: &str = r#"#version 330 core
   layout (location = 0) in vec3 pos;
@@ -64,29 +70,42 @@ pub fn create_window() {
         eprintln!("Viewport is NOT loaded!");
     }
 
+    //????????
     window.set_framebuffer_size_polling(true);
 
     unsafe {
         gl::ClearColor(1.0, 0.2, 0.5, 1.0);
-
-        //Generate Vertex Buffer Objects (VBOs)
-        let mut vbo: u32 = 0;
-        gl::GenBuffers(1, &mut vbo);
-        assert_ne!(vbo, 0);
-
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::BufferData(
-            gl::ARRAY_BUFFER,
-            size_of_val(&VERTICES) as isize,
-            VERTICES.as_ptr().cast(),
-            gl::STATIC_DRAW,
-        );
 
         //Generate a Vertex Array Object(VAO)
         let mut vao: u32 = 0;
         gl::GenVertexArrays(1, &mut vao);
         assert_ne!(vao, 0);
         gl::BindVertexArray(vao);
+
+        //Generate Vertex Buffer Objects (VBOs)
+        let mut vbo: u32 = 0;
+        gl::GenBuffers(1, &mut vbo);
+        assert_ne!(vbo, 0);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo); //Set this buffer (vbo) as active, meaning
+        gl::BufferData(
+            //this is where we will be putting data next (i think)
+            gl::ARRAY_BUFFER,
+            size_of_val(&VERTICES) as isize,
+            VERTICES.as_ptr().cast(),
+            gl::STATIC_DRAW,
+        );
+
+        //Create Element Buffer Object (EBO)
+        let mut ebo = 0;
+        gl::GenBuffers(1, &mut ebo);
+        assert_ne!(ebo, 0);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            size_of_val(&INDICES) as isize,
+            INDICES.as_ptr().cast(),
+            gl::STATIC_DRAW,
+        );
 
         //Vertex Attribute
         gl::VertexAttribPointer(
@@ -181,16 +200,32 @@ pub fn create_window() {
         gl::UseProgram(shader_program);
     }
 
+    let mut wireframe_mode = false;
     //Loop until window is closed
     while !window.should_close() {
         //Handle inputs
         for (_, event) in glfw::flush_messages(&events) {
             println!("{:?}", event);
             match event {
+                //Esc | Close window
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    //TODO: configure inputs
-                    //Closes window when ESC is pressed i think?
+                    //Closes window when ESC is pressed i think? yes
                     window.set_should_close(true);
+                }
+                //Spacebar | Toggle wireframe mode
+                glfw::WindowEvent::Key(Key::Space, _, Action::Press, _) => {
+                    println!("Wireframe mode is currently: {}", wireframe_mode);
+                    if !wireframe_mode {
+                        unsafe {
+                            gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+                        }
+                        wireframe_mode = true;
+                    } else {
+                        unsafe {
+                            gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+                        }
+                        wireframe_mode = false;
+                    }
                 }
                 _ => {} //otherwise continue/do nothing
             }
@@ -201,7 +236,13 @@ pub fn create_window() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            //useprogram
+            //bindvertexarray(VAO[0])
+            //drawArrays(gltriangles,0,3);
+            //bindvertexarray(vao[1])
+            //drawarrays(gltriangles,0,3);
+
+            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0);
         }
 
         //poll for and process events ??
