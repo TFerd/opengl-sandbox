@@ -117,11 +117,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opengl"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "glfw",
+]
+
+[[package]]
 name = "opengl-sandbox"
 version = "0.1.0"
 dependencies = [
  "gl",
  "glfw",
+ "opengl",
 ]
 
 [[package]]

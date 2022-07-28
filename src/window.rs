@@ -77,10 +77,14 @@ pub fn create_window() {
         gl::ClearColor(1.0, 0.2, 0.5, 1.0);
 
         //Generate a Vertex Array Object(VAO)
+        /*
         let mut vao: u32 = 0;
         gl::GenVertexArrays(1, &mut vao);
         assert_ne!(vao, 0);
         gl::BindVertexArray(vao);
+        */
+        let vao = opengl::VertexArray::new().expect("Couldn't make a VAO");
+        vao.bind();
 
         //Generate Vertex Buffer Objects (VBOs)
         let mut vbo: u32 = 0;
@@ -242,7 +246,7 @@ pub fn create_window() {
             //bindvertexarray(vao[1])
             //drawarrays(gltriangles,0,3);
 
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0);
+            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
         }
 
         //poll for and process events ??
