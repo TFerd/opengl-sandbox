@@ -12,16 +12,18 @@ use opengl::vertex_array::*;
 use opengl::*;
 
 type Vertex = [f32; 3];
-const VERTICES: [Vertex; 4] = [
-    // A rectangle has 4 points
-    [0.5, 0.5, 0.0],
-    [0.5, -0.5, 0.0],
-    [-0.5, -0.5, 0.0],
-    [-0.5, 0.5, 0.0],
+const VERTICES: [Vertex; 6] = [
+    [-0.9, -0.9, 0.0],
+    [0.0, -0.9, 0.0],
+    [-0.5, 0.0, 0.0],
+    [0.0, -0.9, 0.0],
+    [0.9, -0.9, 0.0],
+    [0.5, 0.0, 0.0],
 ];
 
+/*
 type TriIndexes = [u32; 3];
-const INDICES: [TriIndexes; 2] = [[0, 1, 3], [1, 2, 3]];
+const INDICES: [TriIndexes; 2] = [[0, 1, 3], [1, 2, 3]]; */
 
 const VERT_SHADER: &str = r#"#version 330 core
   layout (location = 0) in vec3 pos;
@@ -98,6 +100,7 @@ pub fn create_window() {
         gl::STATIC_DRAW,
     );
 
+    /*
     // Create Element Buffer Object (EBO)
     let ebo = Buffer::new().expect("Failed to create EBO");
     ebo.bind(BufferType::ElementArray);
@@ -105,7 +108,7 @@ pub fn create_window() {
         BufferType::ElementArray,
         bytemuck::cast_slice(&INDICES),
         gl::STATIC_DRAW,
-    );
+    ); */
 
     unsafe {
         // Vertex Attribute
@@ -141,7 +144,7 @@ pub fn create_window() {
 
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
 
         // poll for and process events ??
