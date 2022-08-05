@@ -12,16 +12,8 @@ use opengl::vertex_array::*;
 use opengl::*;
 
 type Vertex = [f32; 3];
-const VERTICES: [Vertex; 4] = [
-    // A rectangle has 4 points
-    [0.5, 0.5, 0.0],
-    [0.5, -0.5, 0.0],
-    [-0.5, -0.5, 0.0],
-    [-0.5, 0.5, 0.0],
-];
-
-type TriIndexes = [u32; 3];
-const INDICES: [TriIndexes; 2] = [[0, 1, 3], [1, 2, 3]];
+const TRIANGLE_1: [Vertex; 3] = [[-0.6, -0.6, 0.0], [-0.3, -0.6, 0.0], [-0.45, -0.45, 0.0]];
+const TRIANGLE_2: [Vertex; 3] = [[0.2, 0.2, 0.0], [0.2, 0.4, 0.0], [0.4, 0.2, 0.0]];
 
 const VERT_SHADER: &str = r#"#version 330 core
   layout (location = 0) in vec3 pos;
@@ -30,11 +22,18 @@ const VERT_SHADER: &str = r#"#version 330 core
   }
 "#;
 
-const FRAG_SHADER: &str = r#"#version 330 core
+const FRAG_SHADER1: &str = r#"#version 330 core
   out vec4 final_color;
   void main() {
     final_color = vec4(1.0, 0.5, 0.2, 1.0);
   }
+"#;
+
+const FRAG_SHADER2: &str = r#"#version 330 core
+out vec4 final_color;
+void main() {
+  final_color = vec4(0.2, 1.0, 0.7, 1.0);
+}
 "#;
 
 //todo
@@ -85,28 +84,26 @@ pub fn create_window() {
 
     opengl::clear_color(1.0, 0.2, 0.5, 1.0);
 
-    // Generate a Vertex Array Object(VAO)
-    let vao = VertexArray::new().expect("Failed to create VAO");
-    vao.bind();
+    //VBOs
+    let mut VBOs = Vec::with_capacity(2);
+    for _ in 0..2 {
+        VBOs.push(Buffer::new().expect("Failed to create VBO!"));
+    }
 
-    // Generate Vertex Buffer Objects (VBOs)
-    let vbo = Buffer::new().expect("Failed to create VBO");
-    vbo.bind(BufferType::Array);
+    //VAOs
+    let mut VAOs = Vec::with_capacity(2);
+    for _ in 0..2 {
+        VAOs.push(VertexArray::new().expect("Failed to create VAO!"));
+    }
+
+    //Set up first triangle?
+    VAOs[0].bind();
+    VBOs[0].bind(BufferType::Array);
     Buffer::buffer_data(
         BufferType::Array,
-        bytemuck::cast_slice(&VERTICES),
+        bytemuck::cast_slice(&TRIANGLE_1),
         gl::STATIC_DRAW,
     );
-
-    // Create Element Buffer Object (EBO)
-    let ebo = Buffer::new().expect("Failed to create EBO");
-    ebo.bind(BufferType::ElementArray);
-    Buffer::buffer_data(
-        BufferType::ElementArray,
-        bytemuck::cast_slice(&INDICES),
-        gl::STATIC_DRAW,
-    );
-
     unsafe {
         // Vertex Attribute
         gl::VertexAttribPointer(
@@ -117,12 +114,32 @@ pub fn create_window() {
             size_of::<Vertex>().try_into().unwrap(),
             0 as *const _,
         );
-
         gl::EnableVertexAttribArray(0);
     }
 
-    let program = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER).unwrap(); //unwrap bc its a Result
-    program.use_program();
+    //Set up second triangle?
+    VAOs[1].bind();
+    VBOs[1].bind(BufferType::Array);
+    Buffer::buffer_data(
+        BufferType::Array,
+        bytemuck::cast_slice(&TRIANGLE_2),
+        gl::STATIC_DRAW,
+    );
+    unsafe {
+        // Vertex Attribute
+        gl::VertexAttribPointer(
+            0, // bc we put: layout (location = 0) in our vertex code
+            3, // bc our vertex is a vec3 (x, y, z)
+            gl::FLOAT,
+            gl::FALSE,
+            size_of::<Vertex>().try_into().unwrap(),
+            0 as *const _,
+        );
+        gl::EnableVertexAttribArray(0);
+    }
+
+    let program1 = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER1).unwrap(); //unwrap bc its a Result
+    let program2 = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER2).unwrap(); //unwrap bc its a Result
 
     let mut wireframe_mode = false;
     /*********************************************************************************************************
@@ -141,7 +158,14 @@ pub fn create_window() {
 
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+
+            program1.use_program();
+            VAOs[0].bind();
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+            program2.use_program();
+            VAOs[1].bind();
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
 
         // poll for and process events ??
