@@ -2,9 +2,13 @@ extern crate gl;
 extern crate glfw;
 //extern crate opengl;
 
-use core::mem::size_of;
+//use core::mem::size_of;
+use std::mem;
+use std::os::raw::c_void;
+use std::ptr;
 use std::sync::mpsc::Receiver;
 
+use gl::types::*;
 use glfw::{Action, Context, Key};
 use opengl::buffer::*;
 use opengl::shader::*;
@@ -12,30 +16,15 @@ use opengl::vertex_array::*;
 use opengl::*;
 
 type Vertex = [f32; 3];
-const VERTICES: [Vertex; 4] = [
-    // A rectangle has 4 points
-    [0.5, 0.5, 0.0],
-    [0.5, -0.5, 0.0],
-    [-0.5, -0.5, 0.0],
-    [-0.5, 0.5, 0.0],
+type ColorVertex = [f32; 6]; //First three are vertex location, 4 5 and 6 are the color values
+const VERTICES: [ColorVertex; 3] = [
+    [-0.5, -0.5, 0.0, 1.0, 0.0, 0.0],
+    [0.5, -0.5, 0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.5, 0.0, 0.0, 0.0, 1.0],
 ];
 
-type TriIndexes = [u32; 3];
-const INDICES: [TriIndexes; 2] = [[0, 1, 3], [1, 2, 3]];
-
-const VERT_SHADER: &str = r#"#version 330 core
-  layout (location = 0) in vec3 pos;
-  void main() {
-    gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
-  }
-"#;
-
-const FRAG_SHADER: &str = r#"#version 330 core
-  out vec4 final_color;
-  void main() {
-    final_color = vec4(1.0, 0.5, 0.2, 1.0);
-  }
-"#;
+type TriIndex = [u32; 3];
+const INDICES: [TriIndex; 1] = [[0, 1, 2]];
 
 //todo
 //fn initGlfw() -> glfw::Glfw {
@@ -98,6 +87,7 @@ pub fn create_window() {
         gl::STATIC_DRAW,
     );
 
+    /*
     // Create Element Buffer Object (EBO)
     let ebo = Buffer::new().expect("Failed to create EBO");
     ebo.bind(BufferType::ElementArray);
@@ -105,24 +95,36 @@ pub fn create_window() {
         BufferType::ElementArray,
         bytemuck::cast_slice(&INDICES),
         gl::STATIC_DRAW,
-    );
+    ); */
 
     unsafe {
+        let stride = 6 * mem::size_of::<GLfloat>() as GLsizei;
         // Vertex Attribute
         gl::VertexAttribPointer(
             0, // bc we put: layout (location = 0) in our vertex code
             3, // bc our vertex is a vec3 (x, y, z)
             gl::FLOAT,
             gl::FALSE,
-            size_of::<Vertex>().try_into().unwrap(),
-            0 as *const _,
+            stride,
+            ptr::null(),
         );
-
         gl::EnableVertexAttribArray(0);
+
+        gl::VertexAttribPointer(
+            1,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            stride,
+            (3 * mem::size_of::<GLfloat>()) as *const c_void,
+        );
+        gl::EnableVertexAttribArray(1);
     }
 
-    let program = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER).unwrap(); //unwrap bc its a Result
-    program.use_program();
+    //let program = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER).unwrap(); //unwrap bc its a Result
+    let program =
+        ShaderProgram::create_program_from_files("src/VertexShader.vs", "src/FragmentShader.fs")
+            .unwrap();
 
     let mut wireframe_mode = false;
     /*********************************************************************************************************
@@ -132,8 +134,10 @@ pub fn create_window() {
     **********************************************************************************************************/
     // Rendering Loop:
     while !window.should_close() {
+        program.use_program();
+
         // Handle inputs
-        process_events(&mut window, &events, &mut wireframe_mode);
+        process_events(&mut window, &events, &mut wireframe_mode); //Maybe in the future, add options object as third param
 
         // Rendering commands here!?
         // Yes, once the events are clear, we can change the world state.
@@ -141,12 +145,14 @@ pub fn create_window() {
 
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+
+            vao.bind();
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
 
         // poll for and process events ??
         glfw.poll_events();
-        // Swap front and back buffers (wtf?)
+        // Swap front and back buffers (wtf?) one buffer draws the other calculates?
         window.swap_buffers();
     }
 }
