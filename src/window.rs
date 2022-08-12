@@ -1,10 +1,11 @@
 extern crate gl;
 extern crate glfw;
-//extern crate opengl;
+extern crate image;
+use image::GenericImage;
 
-//use core::mem::size_of;
 use std::mem;
 use std::os::raw::c_void;
+use std::path::Path;
 use std::ptr;
 use std::sync::mpsc::Receiver;
 
@@ -15,16 +16,15 @@ use opengl::shader::*;
 use opengl::vertex_array::*;
 use opengl::*;
 
-type Vertex = [f32; 3];
-type ColorVertex = [f32; 6]; //First three are vertex location, 4 5 and 6 are the color values
-const VERTICES: [ColorVertex; 3] = [
-    [-0.5, -0.5, 0.0, 1.0, 0.0, 0.0],
-    [0.5, -0.5, 0.0, 0.0, 1.0, 0.0],
-    [0.0, 0.5, 0.0, 0.0, 0.0, 1.0],
+type Vertex = [f32; 8]; //First three are vertex location, 4 5 and 6 are the color values, 7 and 8 are texture coords
+const VERTICES: [Vertex; 4] = [
+    [0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0],
+    [0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+    [-0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+    [-0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
 ];
 
-type TriIndex = [u32; 3];
-const INDICES: [TriIndex; 1] = [[0, 1, 2]];
+const INDICES: [u32; 6] = [0, 1, 3, 1, 2, 3];
 
 //todo
 //fn initGlfw() -> glfw::Glfw {
@@ -87,7 +87,6 @@ pub fn create_window() {
         gl::STATIC_DRAW,
     );
 
-    /*
     // Create Element Buffer Object (EBO)
     let ebo = Buffer::new().expect("Failed to create EBO");
     ebo.bind(BufferType::ElementArray);
@@ -95,11 +94,11 @@ pub fn create_window() {
         BufferType::ElementArray,
         bytemuck::cast_slice(&INDICES),
         gl::STATIC_DRAW,
-    ); */
+    );
 
     unsafe {
-        let stride = 6 * mem::size_of::<GLfloat>() as GLsizei;
-        // Vertex Attribute
+        let stride = 8 * mem::size_of::<GLfloat>() as GLsizei;
+        // position attribute
         gl::VertexAttribPointer(
             0, // bc we put: layout (location = 0) in our vertex code
             3, // bc our vertex is a vec3 (x, y, z)
@@ -110,6 +109,7 @@ pub fn create_window() {
         );
         gl::EnableVertexAttribArray(0);
 
+        // color attribute
         gl::VertexAttribPointer(
             1,
             3,
@@ -119,7 +119,54 @@ pub fn create_window() {
             (3 * mem::size_of::<GLfloat>()) as *const c_void,
         );
         gl::EnableVertexAttribArray(1);
+
+        // texture attribute
+        gl::VertexAttribPointer(
+            2,
+            2,
+            gl::FLOAT,
+            gl::FALSE,
+            stride,
+            (6 * mem::size_of::<GLfloat>()) as *const c_void,
+        );
+        gl::EnableVertexAttribArray(2);
     }
+
+    //Configuring Textures
+    let texture = unsafe {
+        let mut texture = 0;
+        gl::GenTextures(1, &mut texture);
+
+        gl::BindTexture(gl::TEXTURE_2D, texture);
+
+        // texture wrapping
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+
+        // texture filtering
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+        //Load texture image
+        let img =
+            image::open(&Path::new("resources/container.jpg")).expect("Failed to load texture.");
+        let img_data = img.raw_pixels();
+
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            gl::RGB as i32,
+            img.width() as i32,
+            img.height() as i32,
+            0,
+            gl::RGB,
+            gl::UNSIGNED_BYTE,
+            &img_data[0] as *const u8 as *const c_void,
+        );
+        gl::GenerateMipmap(gl::TEXTURE_2D);
+
+        texture
+    };
 
     //let program = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER).unwrap(); //unwrap bc its a Result
     let program =
@@ -134,8 +181,6 @@ pub fn create_window() {
     **********************************************************************************************************/
     // Rendering Loop:
     while !window.should_close() {
-        program.use_program();
-
         // Handle inputs
         process_events(&mut window, &events, &mut wireframe_mode); //Maybe in the future, add options object as third param
 
@@ -146,8 +191,10 @@ pub fn create_window() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
+            gl::BindTexture(gl::TEXTURE_2D, texture);
+            program.use_program();
             vao.bind();
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const c_void);
         }
 
         // poll for and process events ??
