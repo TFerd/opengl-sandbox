@@ -1,7 +1,6 @@
 extern crate gl;
 extern crate glfw;
 extern crate image;
-use image::GenericImage;
 
 use std::mem;
 use std::os::raw::c_void;
@@ -162,14 +161,17 @@ pub fn create_window() {
 
     // Load texture image
     let img = image::open(&Path::new("resources/container.jpg")).expect("Failed to load texture.");
-    let img_data = img.raw_pixels();
+    //let img_data = img.into_bytes();
+    let width = img.width();
+    let height = img.height();
+    let img_data = img.into_bytes(); //why the frick does putting this after the width/height work?
 
     tex_image_2d(
         TextureType::Texture2D,
         0,
         InternalFormat::RGB,
-        img.width(),
-        img.height(),
+        width,
+        height,
         InternalFormat::RGB,
         &img_data[0],
     );
