@@ -13,6 +13,7 @@ use gl::types::*;
 use glfw::{Action, Context, Key};
 use opengl::buffer::*;
 use opengl::shader::*;
+use opengl::texture::*;
 use opengl::vertex_array::*;
 use opengl::*;
 
@@ -131,49 +132,56 @@ pub fn create_window() {
         );
         gl::EnableVertexAttribArray(2);
     }
+    // Configuring Textures
+    let texture = Texture::new().expect("Failed to create texture!");
+    texture.bind(TextureType::Texture2D);
 
-    //Configuring Textures
-    let texture = unsafe {
-        let mut texture = 0;
-        gl::GenTextures(1, &mut texture);
+    // texture wrapping
+    set_parameter(
+        TextureType::Texture2D,
+        TextureOption::TextureWrapS,
+        TextureOptionValue::Repeat,
+    );
+    set_parameter(
+        TextureType::Texture2D,
+        TextureOption::TextureWrapT,
+        TextureOptionValue::Repeat,
+    );
 
-        gl::BindTexture(gl::TEXTURE_2D, texture);
+    // texture filtering
+    set_parameter(
+        TextureType::Texture2D,
+        TextureOption::MinFilter,
+        TextureOptionValue::Linear,
+    );
+    set_parameter(
+        TextureType::Texture2D,
+        TextureOption::MagFilter,
+        TextureOptionValue::Linear,
+    );
 
-        // texture wrapping
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+    // Load texture image
+    let img = image::open(&Path::new("resources/container.jpg")).expect("Failed to load texture.");
+    let img_data = img.raw_pixels();
 
-        // texture filtering
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+    tex_image_2d(
+        TextureType::Texture2D,
+        0,
+        InternalFormat::RGB,
+        img.width(),
+        img.height(),
+        InternalFormat::RGB,
+        &img_data[0],
+    );
 
-        //Load texture image
-        let img =
-            image::open(&Path::new("resources/container.jpg")).expect("Failed to load texture.");
-        let img_data = img.raw_pixels();
+    generate_mipmap(TextureType::Texture2D);
 
-        gl::TexImage2D(
-            gl::TEXTURE_2D,
-            0,
-            gl::RGB as i32,
-            img.width() as i32,
-            img.height() as i32,
-            0,
-            gl::RGB,
-            gl::UNSIGNED_BYTE,
-            &img_data[0] as *const u8 as *const c_void,
-        );
-        gl::GenerateMipmap(gl::TEXTURE_2D);
-
-        texture
-    };
-
-    //let program = ShaderProgram::create_program_from_src(VERT_SHADER, FRAG_SHADER).unwrap(); //unwrap bc its a Result
     let program =
         ShaderProgram::create_program_from_files("src/VertexShader.vs", "src/FragmentShader.fs")
             .unwrap();
 
     let mut wireframe_mode = false;
+
     /*********************************************************************************************************
     @TODO: https://learnopengl.com/Getting-started/Hello-Triangle
     This says that UseProgram, BindVertexArray, DrayElements, and BindVertexArray should be in the render loop
@@ -191,7 +199,7 @@ pub fn create_window() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            gl::BindTexture(gl::TEXTURE_2D, texture);
+            texture.bind(TextureType::Texture2D);
             program.use_program();
             vao.bind();
             gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const c_void);
